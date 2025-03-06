@@ -3,10 +3,9 @@ import os
 from database import supabase_client as supabase
 from PyPDF2 import PdfReader
 from google.generativeai import configure, GenerativeModel
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
 from dotenv import load_dotenv
+from docx import Document
+import re
 
 load_dotenv()
 
@@ -59,20 +58,57 @@ def analyze_notes(content, user_prompt):
         return None
 
 
-def create_simple_pdf(text):
-    """Generates a simple PDF with plain text."""
-    pdf_path = "Enhanced_Notes.pdf"
-    doc = SimpleDocTemplate(pdf_path, pagesize=letter)
-    styles = getSampleStyleSheet()
-    elements = []
+def create_docx(text):
+    """Generates a properly formatted DOCX file from the enhanced notes."""
+    doc = Document()
 
     for line in text.split("\n"):
-        elements.append(Paragraph(line, styles["BodyText"]))
-        elements.append(Spacer(1, 12))
+        line = line.strip()
 
-    doc.build(elements)
-    return pdf_path
+        if not line:
+            doc.add_paragraph("")  # Preserve blank lines
+            continue
 
+        # Headings (Markdown-style)
+        if line.startswith("# "):
+            doc.add_heading(line[2:], level=1)
+            continue
+        elif line.startswith("## "):
+            doc.add_heading(line[3:], level=2)
+            continue
+        elif line.startswith("### "):
+            doc.add_heading(line[4:], level=3)
+            continue
+
+        # Bullet Points
+        elif line.startswith(("- ", "* ")):
+            doc.add_paragraph(line[2:], style="ListBullet")
+            continue
+
+        # Numbered List
+        elif re.match(r"^\d+\.\s", line):
+            doc.add_paragraph(line, style="ListNumber")
+            continue
+
+        # Handle bold and italic formatting inside paragraphs
+        para = doc.add_paragraph()
+        pattern = re.compile(r"(\*\*.*?\*\*|\*.*?\*)")  # Match **bold** and *italic*
+        matches = pattern.split(line)  # Split line into formatted segments
+
+        for part in matches:
+            if part.startswith("**") and part.endswith("**"):
+                run = para.add_run(part[2:-2])  # Remove ** and apply bold
+                run.bold = True
+            elif part.startswith("*") and part.endswith("*"):
+                run = para.add_run(part[1:-1])  # Remove * and apply italic
+                run.italic = True
+            else:
+                para.add_run(part)  # Add normal text
+
+    doc_path = "Enhanced_Notes.docx"
+    doc.save(doc_path)
+
+    return doc_path
 
 def notes_page():
     """Displays the AI-Enhanced Notes page in Streamlit."""
@@ -104,9 +140,10 @@ def notes_page():
     if st.button("🧠 Enhance Notes"):
         enhanced_notes = analyze_notes(text, user_prompt)
         st.session_state["enhanced_notes"] = enhanced_notes
-        st.text_area("📘 Enhanced Notes", enhanced_notes, height=400, disabled=True)
+        st.markdown(enhanced_notes, unsafe_allow_html=True)
 
-        pdf_path = create_simple_pdf(enhanced_notes)
-        with open(pdf_path, "rb") as pdf_file:
-            st.download_button(label="📥 Download Enhanced Notes (PDF)", data=pdf_file, file_name="Enhanced_Notes.pdf",
-                               mime="application/pdf")
+        docx_path = create_docx(enhanced_notes)
+        with open(docx_path, "rb") as docx_file:
+            st.download_button(label="📥 Download Enhanced Notes (DOCX)", data=docx_file,
+                               file_name="Enhanced_Notes.docx",
+                               mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
