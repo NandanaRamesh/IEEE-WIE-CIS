@@ -3,6 +3,7 @@ from database import supabase_client as supabase
 from login import login
 from signup import sign_up
 from datetime import datetime
+from notes import notes_page
 from dotenv import load_dotenv
 import google.generativeai as genai
 import fitz
@@ -21,7 +22,7 @@ model = genai.GenerativeModel("gemini-1.5-flash")
 def upload_document():
     """Handles document upload to the selected chat folder in Supabase Storage."""
     st.sidebar.subheader("📂 Upload Document")
-    uploaded_file = st.sidebar.file_uploader("Choose a file", type=["pdf", "txt", "docx"])
+    uploaded_file = st.sidebar.file_uploader("Choose a file", type=["pdf"])
 
     if uploaded_file:
         user_display_name = st.session_state["username"]
@@ -118,6 +119,7 @@ def sidebar_options():
         documents = fetch_user_documents()
         selected_docs = st.sidebar.multiselect("Choose documents:", documents) if documents else []
 
+
         col1, col2 = st.sidebar.columns(2)
         with col1:
 
@@ -171,7 +173,7 @@ def sidebar_options():
         if st.sidebar.button("📖 Flash Cards"):
             st.session_state["page"]="flashcard"
         if st.sidebar.button("📝 Notes"):
-            st.sidebar.info("Notes feature coming soon!")
+            st.session_state["page"] = "notes"
 
         # Logout Button
         if st.sidebar.button("🚪 Log Out"):
@@ -276,6 +278,8 @@ def main():
         login()
     elif st.session_state["page"] == "signup":
         sign_up()
+    elif st.session_state["page"] == "notes":
+        notes_page()
 
 
 if __name__ == "__main__":

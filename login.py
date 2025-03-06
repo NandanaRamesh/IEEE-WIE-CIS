@@ -44,6 +44,12 @@ def login():
                     st.success(f"Welcome back, {username}!")
                     st.session_state["page"] = "home"
                     st.rerun()
+                    if "user_logged_in" in st.session_state and st.session_state["user_logged_in"]:
+                        if "session_username" not in st.session_state:
+                            session_metadata = get_user_metadata()
+                            st.session_state["session_username"] = session_metadata.get("display_name",
+                                                                                        "User") if session_metadata else "User"
+
                 else:
                     st.error("Invalid credentials. Please try again.")
             except Exception as e:
