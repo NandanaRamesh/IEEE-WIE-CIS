@@ -6,30 +6,49 @@ from datetime import datetime
 
 
 def upload_document():
-    """Handles document upload to Supabase Storage."""
+    """Handles document upload to the selected chat folder in Supabase Storage."""
     st.sidebar.subheader("📂 Upload Document")
     uploaded_file = st.sidebar.file_uploader("Choose a file", type=["pdf", "txt", "docx"])
 
     if uploaded_file:
         user_display_name = st.session_state["username"]
+        selected_chat = st.session_state.get("selected_chat")
+
+        if not selected_chat:
+            st.sidebar.error("Please select or create a chat first.")
+            return
+
         bucket_name = "user-documents"
-        file_path = f"{user_display_name}/{uploaded_file.name}"
+        file_path = f"{user_display_name}/{selected_chat}/{uploaded_file.name}"
 
         try:
             supabase.storage.from_(bucket_name).upload(file_path, uploaded_file.getvalue())
-            st.sidebar.success(f"Uploaded '{uploaded_file.name}' successfully!")
+            st.sidebar.success(f"Uploaded '{uploaded_file.name}' to '{selected_chat}' successfully!")
         except Exception as e:
             st.sidebar.error(f"Upload failed: {e}")
 
 
 def fetch_user_documents():
-    """Fetches all documents for the logged-in user from Supabase Storage."""
+    """Fetches all documents for the selected chat history from Supabase Storage."""
     user_display_name = st.session_state["username"]
     bucket_name = "user-documents"
 
+    # Ensure a chat is selected
+    selected_chat = st.session_state.get("selected_chat")
+    if not selected_chat:
+        st.sidebar.warning("No chat history selected.")
+        return []
+
+    chat_folder = f"{user_display_name}/{selected_chat}"
+
     try:
-        response = supabase.storage.from_(bucket_name).list(user_display_name)
-        return [file["name"] for file in response]
+        response = supabase.storage.from_(bucket_name).list(chat_folder)
+
+        if response:
+            return [file["name"] for file in response]
+        else:
+            st.sidebar.warning("No documents found in this chat history.")
+            return []
     except Exception as e:
         st.sidebar.error(f"Failed to fetch documents: {e}")
         return []
@@ -58,6 +77,32 @@ def sidebar_options():
 
         # Document Upload
         upload_document()
+
+        # Chat History
+        st.sidebar.subheader("💬 Chat History")
+        user_display_name = st.session_state["username"]
+        response = supabase.table("Chat-History").select("id", "name").eq("displayname", user_display_name).execute()
+        chat_histories = response.data if response.data else []
+
+        chat_options = ["➕ Create New Chat"] + [chat["name"] for chat in chat_histories]
+        selected_chat = st.sidebar.selectbox("Select a chat history:", chat_options, index=0)
+
+        if selected_chat == "➕ Create New Chat":
+            st.session_state["creating_chat"] = True
+        else:
+            st.session_state["creating_chat"] = False
+            st.session_state["selected_chat"] = selected_chat
+            st.sidebar.success(f"Selected Chat: {selected_chat}")
+
+        if st.session_state.get("creating_chat", False):
+            chat_name = st.sidebar.text_input("Enter chat history name")
+            if st.sidebar.button("Save Chat"):
+                if chat_name.strip():
+                    save_chat_history(chat_name)
+                    st.session_state["creating_chat"] = False
+                    st.rerun()
+                else:
+                    st.sidebar.error("Chat name cannot be empty.")
 
         # View Available Documents
         st.sidebar.subheader("📑 Select Documents")
@@ -99,31 +144,7 @@ def sidebar_options():
             st.session_state["page"] = "home"  # Ensure it redirects to home
             st.rerun()
 
-        # Chat History
-        st.sidebar.subheader("💬 Chat History")
-        user_display_name = st.session_state["username"]
-        response = supabase.table("Chat-History").select("id", "name").eq("displayname", user_display_name).execute()
-        chat_histories = response.data if response.data else []
 
-        chat_options = ["➕ Create New Chat"] + [chat["name"] for chat in chat_histories]
-        selected_chat = st.sidebar.selectbox("Select a chat history:", chat_options, index=0)
-
-        if selected_chat == "➕ Create New Chat":
-            st.session_state["creating_chat"] = True
-        else:
-            st.session_state["creating_chat"] = False
-            st.session_state["selected_chat"] = selected_chat
-            st.sidebar.success(f"Selected Chat: {selected_chat}")
-
-        if st.session_state.get("creating_chat", False):
-            chat_name = st.sidebar.text_input("Enter chat history name")
-            if st.sidebar.button("Save Chat"):
-                if chat_name.strip():
-                    save_chat_history(chat_name)
-                    st.session_state["creating_chat"] = False
-                    st.rerun()
-                else:
-                    st.sidebar.error("Chat name cannot be empty.")
 
     else:
         # Redirect to homepage when emoji is clicked (for logged-out users)
@@ -147,7 +168,7 @@ def delete_documents(file_names):
 
 
 def save_chat_history(chat_name):
-    """Saves the new chat history in Supabase and creates necessary folders."""
+    """Saves the new chat history in Supabase and creates a dedicated folder."""
     try:
         user_display_name = st.session_state["username"]
 
@@ -168,16 +189,17 @@ def save_chat_history(chat_name):
             "displayname": user_display_name
         }).execute()
 
-        # Create user folder in Supabase Storage
+        # Create chat folder inside the user's directory
         bucket_name = "user-documents"
-        user_folder = f"{user_display_name}/"
-        placeholder_file_path = f"{user_folder}placeholder.txt"
+        chat_folder = f"{user_display_name}/{chat_name}/"
+        placeholder_file_path = f"{chat_folder}placeholder.txt"
         placeholder_content = b"Folder placeholder"
 
         supabase.storage.from_(bucket_name).upload(placeholder_file_path, placeholder_content)
 
         st.sidebar.success(f"Chat history '{chat_name}' created successfully!")
         st.session_state["creating_chat"] = False
+        st.session_state["selected_chat"] = chat_name  # Set the new chat as selected
         st.rerun()
     except Exception as e:
         st.sidebar.error(f"Error creating chat history: {e}")
