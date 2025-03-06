@@ -59,21 +59,21 @@ def homepage():
         # Fetch existing chat histories for the logged-in user
         user_display_name = st.session_state["username"]
         response = supabase.table("Chat-History").select("id", "name").eq("displayname", user_display_name).execute()
-
         chat_histories = response.data if response.data else []
 
-        # Prepare options for dropdown (existing chats + new chat option)
+        # Prepare dropdown options (existing chats + new chat option)
         chat_options = ["➕ Create New Chat"] + [chat["name"] for chat in chat_histories]
         selected_chat = st.selectbox("Select a chat history:", chat_options, index=0)
 
         if selected_chat == "➕ Create New Chat":
             st.session_state["creating_chat"] = True  # Enable new chat creation
         else:
+            st.session_state["creating_chat"] = False  # Reset if an existing chat is selected
             st.session_state["selected_chat"] = selected_chat
             st.success(f"Selected Chat: {selected_chat}")  # Show selected chat
 
-        # Handle new chat creation
-        if st.session_state.get("creating_chat"):
+        # Show new chat input box **only** if "Create New Chat" is selected
+        if st.session_state.get("creating_chat", False):
             chat_name = st.text_input("Enter chat history name")
             if st.button("Save Chat"):
                 if chat_name.strip():
