@@ -15,23 +15,31 @@ def save_chat_history(chat_name):
     try:
         user_display_name = st.session_state["username"]
 
-        # Fetch last chat history ID and increment it (as an integer)
+        # Fetch last chat history ID and increment it
         response = supabase.table("Chat-History").select("id").order("id", desc=True).limit(1).execute()
-        last_id = response.data[0]["id"] if response.data else 0  # Default to 0 if no data
-        new_id = last_id + 1  # Increment the integer ID
+
+        if response.data:
+            last_id = response.data[0]["id"]  # Fetch the last ID
+            last_number = int(last_id[2:])  # Extract numeric part after 'ID'
+            new_id = f"ID{last_number + 1:04d}"  # Format as ID0001, ID0002, etc.
+        else:
+            new_id = "ID0001"  # First chat history entry
 
         # Insert the new chat history into Supabase
         supabase.table("Chat-History").insert({
-            "id": new_id,  # Store as integer
+            "id": new_id,  # Store as string (e.g., "ID0001")
             "name": chat_name,
             "created_at": datetime.utcnow().isoformat(),
             "displayname": user_display_name
         }).execute()
 
-        # Create user folder in the Supabase bucket
+        # Create user folder in Supabase Storage by uploading a placeholder file
         bucket_name = "user-documents"
         user_folder = f"{user_display_name}/"
-        supabase.storage.from_(bucket_name).upload(user_folder, "")
+        placeholder_file_path = f"{user_folder}placeholder.txt"
+        placeholder_content = b"Folder placeholder"
+
+        supabase.storage.from_(bucket_name).upload(placeholder_file_path, placeholder_content)
 
         st.success(f"Chat history '{chat_name}' created successfully!")
         st.session_state["creating_chat"] = False
@@ -48,21 +56,30 @@ def homepage():
     if "user_logged_in" in st.session_state and st.session_state["user_logged_in"]:
         st.success(f"Welcome, {st.session_state['username']}!")
 
-        # Check if user has existing chat history
+        # Fetch existing chat histories for the logged-in user
         user_display_name = st.session_state["username"]
-        response = supabase.table("Chat-History").select("*").eq("displayname", user_display_name).execute()
+        response = supabase.table("Chat-History").select("id", "name").eq("displayname", user_display_name).execute()
 
-        if not response.data:
-            st.warning("You have no chat history.")
-            if st.button("Create Chat History"):
-                create_chat_history()
+        chat_histories = response.data if response.data else []
 
-        # Handle chat creation prompt
+        # Prepare options for dropdown (existing chats + new chat option)
+        chat_options = ["➕ Create New Chat"] + [chat["name"] for chat in chat_histories]
+        selected_chat = st.selectbox("Select a chat history:", chat_options, index=0)
+
+        if selected_chat == "➕ Create New Chat":
+            st.session_state["creating_chat"] = True  # Enable new chat creation
+        else:
+            st.session_state["selected_chat"] = selected_chat
+            st.success(f"Selected Chat: {selected_chat}")  # Show selected chat
+
+        # Handle new chat creation
         if st.session_state.get("creating_chat"):
             chat_name = st.text_input("Enter chat history name")
             if st.button("Save Chat"):
                 if chat_name.strip():
                     save_chat_history(chat_name)
+                    st.session_state["creating_chat"] = False  # Reset after saving
+                    st.rerun()  # Refresh UI
                 else:
                     st.error("Chat name cannot be empty.")
 
