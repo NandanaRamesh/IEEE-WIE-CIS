@@ -37,6 +37,22 @@ def fetch_user_documents():
 
 def sidebar_options():
     """Renders sidebar options when user is logged in."""
+    # Large College Scholar Emoji as Home Button
+    st.sidebar.markdown(
+        """
+        <style>
+            .emoji-button {
+                font-size: 50px;
+                text-align: left;
+                display: block;
+                cursor: pointer;
+            }
+        </style>
+        <a href="#" class="emoji-button" onclick="window.location.reload();">🎓</a>
+        """,
+        unsafe_allow_html=True
+    )
+
     if "user_logged_in" in st.session_state and st.session_state["user_logged_in"]:
         st.sidebar.subheader(f"👤 Welcome, {st.session_state['username']}!")
 
@@ -58,16 +74,29 @@ def sidebar_options():
                 if st.button("❌ Delete") and selected_docs:
                     delete_documents(selected_docs)
 
-        # Other Functionalities
+        # Full-width Buttons using CSS
+        st.sidebar.markdown(
+            """
+            <style>
+            div.stButton > button {
+                width: 100%;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+
+        # Other Functionalities (Properly Styled Buttons)
         if st.sidebar.button("📖 Flash Cards"):
             st.sidebar.info("Flash Cards feature coming soon!")
 
         if st.sidebar.button("📝 Notes"):
             st.sidebar.info("Notes feature coming soon!")
 
-        # Logout Button
+        # Logout Button (Now Works Correctly)
         if st.sidebar.button("🚪 Log Out"):
             st.session_state.clear()
+            st.session_state["page"] = "home"  # Ensure it redirects to home
             st.rerun()
 
         # Chat History
@@ -95,6 +124,12 @@ def sidebar_options():
                     st.rerun()
                 else:
                     st.sidebar.error("Chat name cannot be empty.")
+
+    else:
+        # Redirect to homepage when emoji is clicked (for logged-out users)
+        if "page" in st.session_state and st.session_state["page"] != "home":
+            st.session_state["page"] = "home"
+            st.rerun()
 
 
 def delete_documents(file_names):
