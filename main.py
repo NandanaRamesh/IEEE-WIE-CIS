@@ -9,7 +9,9 @@ import google.generativeai as genai
 import fitz
 import io
 import os
+from supabase import create_client
 from chatbot import chatbot_interface
+from flashcards import show_flashcards
 
 load_dotenv()
 
@@ -56,7 +58,7 @@ def fetch_user_documents():
         st.sidebar.warning("No chat history selected.")
         return []
 
-    chat_folder = f"{user_display_name}/{selected_chat}"
+    chat_folder = f"{user_display_name}/{selected_chat}/"
 
     try:
         response = supabase.storage.from_(bucket_name).list(chat_folder)
@@ -127,6 +129,7 @@ def sidebar_options():
 
                 for doc in selected_docs:
                     file_path = f"{user_display_name}/{selected_chat}/{doc}"
+                    print(file_path)
                     
                     try:
                         response = supabase.storage.from_(bucket_name).download(file_path)
@@ -168,8 +171,7 @@ def sidebar_options():
 
         # Other Functionalities
         if st.sidebar.button("📖 Flash Cards"):
-            st.sidebar.info("Flash Cards feature coming soon!")
-
+            st.session_state["page"]="flashcard"
         if st.sidebar.button("📝 Notes"):
             st.session_state["page"] = "notes"
 
@@ -265,9 +267,13 @@ def main():
                 st.rerun()
         else:
             sidebar_options()
+    
 
     if st.session_state["page"] == "home":
         homepage()
+    elif st.session_state["page"] == "flashcard":
+        document_text = st.session_state.get("selected_document_text", "")
+        show_flashcards(model,document_text)
     elif st.session_state["page"] == "login":
         login()
     elif st.session_state["page"] == "signup":
