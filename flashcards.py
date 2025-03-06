@@ -3,7 +3,7 @@ import streamlit as st
 
 def generate_flashcards(model,text):
     """Generates flashcards using the Gemini API."""
-    response = model.generate_content(f"Create flashcards for the following text. Provide only question and answer format:\n{text}")
+    response = model.generate_content(f"Create flashcards for the following text. Provide only question and answer format with question on top and its corresponding aswer below, again next question and answer always keep question at the first:\n{text}")
     return response.text
 
 flip_card_html = """
