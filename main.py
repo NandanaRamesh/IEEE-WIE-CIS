@@ -5,7 +5,10 @@ from signup import sign_up
 from datetime import datetime
 from dotenv import load_dotenv
 import google.generativeai as genai
+import fitz
+import io
 import os
+from chatbot import chatbot_interface
 
 load_dotenv()
 
@@ -61,24 +64,14 @@ def fetch_user_documents():
         st.sidebar.error(f"Failed to fetch documents: {e}")
         return []
 
-
+# Function to render sidebar options
 def sidebar_options():
-    """Renders sidebar options when user is logged in."""
-    # Large College Scholar Emoji as Home Button
-    st.sidebar.markdown(
-        """
-        <style>
-            .emoji-button {
-                font-size: 50px;
-                text-align: left;
-                display: block;
-                cursor: pointer;
-            }
-        </style>
-        <a href="#" class="emoji-button" onclick="window.location.reload();">🎓</a>
-        """,
-        unsafe_allow_html=True
-    )
+    """Renders sidebar options when the user is logged in."""
+    
+    # Home Button - Reload Streamlit
+    if st.sidebar.button("🎓 Home"):
+        st.session_state["page"] = "home"
+        st.rerun()
 
     if "user_logged_in" in st.session_state and st.session_state["user_logged_in"]:
         st.sidebar.subheader(f"👤 Welcome, {st.session_state['username']}!")
@@ -89,6 +82,7 @@ def sidebar_options():
         # Chat History
         st.sidebar.subheader("💬 Chat History")
         user_display_name = st.session_state["username"]
+
         response = supabase.table("Chat-History").select("id", "name").eq("displayname", user_display_name).execute()
         chat_histories = response.data if response.data else []
 
@@ -115,17 +109,43 @@ def sidebar_options():
         # View Available Documents
         st.sidebar.subheader("📑 Select Documents")
         documents = fetch_user_documents()
-        if documents:
-            selected_docs = st.sidebar.multiselect("Choose documents:", documents)
+        selected_docs = st.sidebar.multiselect("Choose documents:", documents) if documents else []
 
-            col1, col2 = st.sidebar.columns(2)
-            with col1:
-                if st.button("📂 Load") and selected_docs:
+        col1, col2 = st.sidebar.columns(2)
+        with col1:
+
+            if st.button("📂 Load") and selected_docs:
+                document_contents = []
+                bucket_name = "user-documents"
+
+                for doc in selected_docs:
+                    file_path = f"{user_display_name}/{selected_chat}/{doc}"
+                    
+                    try:
+                        response = supabase.storage.from_(bucket_name).download(file_path)
+
+                        if doc.lower().endswith(".pdf"):  # Handle PDFs
+                            pdf_bytes = io.BytesIO(response)  # Convert bytes to file-like object
+                            
+                            with fitz.open(stream=pdf_bytes, filetype="pdf") as pdf_reader:  # Properly open PDF
+                                pdf_text = "\n\n".join([page.get_text() for page in pdf_reader])
+
+                            document_contents.append(pdf_text)
+
+                        else:  # Handle text-based files normally
+                            document_contents.append(response.decode("utf-8"))
+
+                    except Exception as e:
+                        st.sidebar.error(f"Error loading {doc}: {e}")
+
+                if document_contents:
+                    st.session_state["selected_document_text"] = "\n\n".join(document_contents)
                     st.sidebar.success(f"Loaded: {', '.join(selected_docs)}")
 
-            with col2:
-                if st.button("❌ Delete") and selected_docs:
-                    delete_documents(selected_docs)
+
+        with col2:
+            if st.button("❌ Delete") and selected_docs:
+                delete_documents(selected_docs)
 
         # Full-width Buttons using CSS
         st.sidebar.markdown(
@@ -139,23 +159,20 @@ def sidebar_options():
             unsafe_allow_html=True
         )
 
-        # Other Functionalities (Properly Styled Buttons)
+        # Other Functionalities
         if st.sidebar.button("📖 Flash Cards"):
             st.sidebar.info("Flash Cards feature coming soon!")
 
         if st.sidebar.button("📝 Notes"):
             st.sidebar.info("Notes feature coming soon!")
 
-        # Logout Button (Now Works Correctly)
+        # Logout Button
         if st.sidebar.button("🚪 Log Out"):
             st.session_state.clear()
-            st.session_state["page"] = "home"  # Ensure it redirects to home
+            st.session_state["page"] = "home"
             st.rerun()
 
-
-
     else:
-        # Redirect to homepage when emoji is clicked (for logged-out users)
         if "page" in st.session_state and st.session_state["page"] != "home":
             st.session_state["page"] = "home"
             st.rerun()
@@ -220,6 +237,9 @@ def homepage():
 
     if "user_logged_in" in st.session_state and st.session_state["user_logged_in"]:
         st.success(f"Welcome, {st.session_state['username']}!")
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        document_text = st.session_state.get("selected_document_text", "")
+        chatbot_interface(model, document_text)
 
 
 def main():

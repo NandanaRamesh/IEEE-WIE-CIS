@@ -12,8 +12,7 @@ def adjust_history_for_gemini(history):
     """Adjusts chat history for Gemini API."""
     return [{"role": message["role"], "parts": [message["content"]]} for message in history]
 
-# Standalone chatbot function
-def chatbot_interface(model):
+def chatbot_interface(model, document_text):
     """Streamlit-based chatbot interface using Gemini API."""
     st.markdown("## 🤖 Doubt Clearance Chatbot")
 
@@ -21,9 +20,13 @@ def chatbot_interface(model):
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
+    # Display document context if available
+    if document_text:
+        with st.expander("📜 Document Context", expanded=True):
+            st.text_area("Loaded Document", document_text, height=200, disabled=True)
+
     # Display chat messages in a scrollable container
-    chat_container = st.container()
-    with chat_container:
+    with st.container():
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
@@ -47,7 +50,14 @@ def chatbot_interface(model):
             try:
                 # Format history and call API
                 formatted_history = adjust_history_for_gemini(st.session_state.messages)
-                response_text, chat_history = chat_with_gemini(user_input, formatted_history, model)
+                
+                # Include document context in the prompt if available
+                if document_text:
+                    prompt = f"Use the following document to assist with the response:\n\n{document_text}\n\nQuestion: {user_input}"
+                else:
+                    prompt = user_input
+                
+                response_text, chat_history = chat_with_gemini(prompt, formatted_history, model)
 
                 # Display response dynamically
                 full_response = response_text
