@@ -3,7 +3,15 @@ from database import supabase_client as supabase
 from login import login
 from signup import sign_up
 from datetime import datetime
+from dotenv import load_dotenv
+import google.generativeai as genai
+import os
 
+load_dotenv()
+
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel("gemini-1.5-flash")
 
 def upload_document():
     """Handles document upload to Supabase Storage."""
