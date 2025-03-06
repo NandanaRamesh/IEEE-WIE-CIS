@@ -12,6 +12,7 @@ import os
 from supabase import create_client
 from chatbot import chatbot_interface
 from flashcards import show_flashcards
+from quiz import show_quiz
 
 load_dotenv()
 
@@ -174,6 +175,8 @@ def sidebar_options():
             st.session_state["page"]="flashcard"
         if st.sidebar.button("📝 Notes"):
             st.session_state["page"] = "notes"
+        if st.sidebar.button("📖 Quiz"):
+            st.session_state["page"]="quiz"
 
         # Logout Button
         if st.sidebar.button("🚪 Log Out"):
@@ -274,6 +277,9 @@ def main():
     elif st.session_state["page"] == "flashcard":
         document_text = st.session_state.get("selected_document_text", "")
         show_flashcards(model,document_text)
+    elif st.session_state["page"] == "quiz":
+        document_text = st.session_state.get("selected_document_text", "")
+        show_quiz(model,document_text)
     elif st.session_state["page"] == "login":
         login()
     elif st.session_state["page"] == "signup":
