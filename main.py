@@ -33,7 +33,12 @@ def upload_document():
         file_path = f"{user_display_name}/{selected_chat}/{uploaded_file.name}"
 
         try:
-            supabase.storage.from_(bucket_name).upload(file_path, uploaded_file.getvalue())
+            # Read file content correctly
+            file_bytes = uploaded_file.read()
+
+            # Upload file as bytes
+            supabase.storage.from_(bucket_name).upload(file_path, file_bytes)
+
             st.sidebar.success(f"Uploaded '{uploaded_file.name}' to '{selected_chat}' successfully!")
         except Exception as e:
             st.sidebar.error(f"Upload failed: {e}")
