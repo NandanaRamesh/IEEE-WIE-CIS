@@ -3,6 +3,7 @@ from database import supabase_client as supabase
 from login import login
 from signup import sign_up
 from datetime import datetime
+from datetime import datetime, UTC
 
 
 def create_chat_history():
@@ -29,7 +30,7 @@ def save_chat_history(chat_name):
         supabase.table("Chat-History").insert({
             "id": new_id,  # Store as string (e.g., "ID0001")
             "name": chat_name,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "displayname": user_display_name
         }).execute()
 
