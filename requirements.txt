@@ -1,2 +1,8 @@
 streamlit
+python-dotenv
 supabase
+google-generativeai
+PyMuPDF
+PyPDF2
+python-docx
+regex

@@ -9,7 +9,6 @@ import google.generativeai as genai
 import fitz
 import io
 import os
-from supabase import create_client
 from chatbot import chatbot_interface
 from flashcards import show_flashcards
 from quiz import show_quiz
@@ -54,7 +53,7 @@ def fetch_user_documents():
     bucket_name = "user-documents"
 
     # Ensure a chat is selected
-    selected_chat = st.session_state.get("selected_chat")
+    selected_chat = st.session_state["selected_chat"]
     if not selected_chat:
         st.sidebar.warning("No chat history selected.")
         return []
@@ -63,6 +62,7 @@ def fetch_user_documents():
 
     try:
         response = supabase.storage.from_(bucket_name).list(chat_folder)
+
 
         if response:
             return [file["name"] for file in response]
@@ -97,15 +97,21 @@ def sidebar_options():
 
         chat_options = ["➕ Create New Chat"] + [chat["name"] for chat in chat_histories]
         selected_chat = st.sidebar.selectbox("Select a chat history:", chat_options, index=0)
+        st.session_state["selected_chat"] = selected_chat
 
         if selected_chat == "➕ Create New Chat":
             st.session_state["creating_chat"] = True
         else:
-            st.session_state["creating_chat"] = False
-            st.session_state["selected_chat"] = selected_chat
-            st.sidebar.success(f"Selected Chat: {selected_chat}")
+            if st.session_state.get("selected_chat") != selected_chat:
+                st.session_state["selected_chat"] = selected_chat
+                st.rerun()
+                st.session_state["creating_chat"] = False
+            else:
+                st.sidebar.success(f"Selected Chat: {selected_chat}")
+                st.session_state["selected_chat"] = selected_chat
+                st.session_state["creating_chat"] = False
 
-        if st.session_state.get("creating_chat", False):
+        if st.session_state.get("creating_chat", True):
             chat_name = st.sidebar.text_input("Enter chat history name")
             if st.sidebar.button("Save Chat"):
                 if chat_name.strip():
@@ -115,11 +121,19 @@ def sidebar_options():
                 else:
                     st.sidebar.error("Chat name cannot be empty.")
 
-        # View Available Documents
+        # Sidebar Section: View Available Documents
         st.sidebar.subheader("📑 Select Documents")
-        documents = fetch_user_documents()
-        selected_docs = st.sidebar.multiselect("Choose documents:", documents) if documents else []
 
+        # Add a "Fetch" button to trigger fetching documents
+        if st.sidebar.button("🔄 Fetch Documents"):
+            st.session_state["documents"] = fetch_user_documents()  # Store fetched documents in session state
+
+        # Retrieve stored documents or set an empty list if not fetched yet
+        documents = st.session_state.get("documents", [])
+
+        # Allow user to select documents if available
+        selected_docs = st.sidebar.multiselect("Choose documents:", documents) if documents else []
+        st.session_state["selected_docs"] = selected_docs  # Store it in session state
 
         col1, col2 = st.sidebar.columns(2)
         with col1:
@@ -131,13 +145,13 @@ def sidebar_options():
                 for doc in selected_docs:
                     file_path = f"{user_display_name}/{selected_chat}/{doc}"
                     print(file_path)
-                    
+
                     try:
                         response = supabase.storage.from_(bucket_name).download(file_path)
 
                         if doc.lower().endswith(".pdf"):  # Handle PDFs
                             pdf_bytes = io.BytesIO(response)  # Convert bytes to file-like object
-                            
+
                             with fitz.open(stream=pdf_bytes, filetype="pdf") as pdf_reader:  # Properly open PDF
                                 pdf_text = "\n\n".join([page.get_text() for page in pdf_reader])
 
